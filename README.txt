@@ -192,7 +192,7 @@ ActionContainerUnpause = "container_unpause"
 ActionContainerWait = "container_wait"
 
 
-6. Enchanced the security:
+6. Enchanced security:
 Reason: there are a few Colleagues whom will be able to become to root - in the future - , too. Not to much, but we have to also handle this situation.
 6.1: Protect the CA's and server's files:
 Goal: We protect the created files (for using TLS with docker)  with password.
