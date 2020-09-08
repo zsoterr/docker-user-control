@@ -190,3 +190,58 @@ ActionContainerStop = "container_stop"
 ActionContainerTop = "container_top"
 ActionContainerUnpause = "container_unpause"
 ActionContainerWait = "container_wait"
+
+
+6. Enchanced the security:
+Reason: there are a few Colleagues whom will be able to become to root - in the future - , too. Not to much, but we have to also handle this situation.
+6.1: Protect the CA's and server's files:
+Goal: We protect the created files (for using TLS with docker)  with password.
+Solution:
+ Add the desired users to adminmembers group.
+ Change the permisson on folder where you store the files: chgrp adminmembers /srv/awx/config/
+ Create a compressed file and set the password on that:
+  for example:
+   tar -czvf ca4docker.tar.gz /srv/awx/config
+   openssl enc -AES-256-CBC -in  ca4docker.tar.gz -out ca4docker.tar.gz.enc
+   rm -rf /srv/awc/config/*
+   mv ca4docker.tar.gz.enc /srv/awc/config/
+   chgrp adminmembers /srv/awx/config/ca4docker.tar.gz.enc
+If you need to decrypt the file (for example: you need to sign a new client certicate):
+ openssl enc -AES-256-CBC -d -in ca4docker.tar.gz.enc -out ca4docker.tar.gz
+ tar -xzf ca4docker.tar.gz
+sign the client certificate and remove/delete all unpacked files excetption one, : ca4docker.tar.gz.enc
+
+6.2: Protect user's .docker folder:
+Goal: We store the necessary files - for using docker with TLS) in this folder: ~/.docker/ . We have to encrypt this folder to ensure if only who knows this password will be able to decrypt the folder and use docker command.
+Solution:
+ Install the necessary package on the node(s): yum install encfs 
+ Create the folders within all affected users's folder and set the right permisson on those.
+ Anything you will store in ~/de will be automatically encrypted and put into ~/en directory:
+  encfs  /home/$AffectedUserName/en /home/$AffectedUserName/de
+  → choose the "Paranoid configuration"  as "p" and set the dedicated password/user for ENCFS. Share this password with right user via safe-channel (like encrypted email).
+  chown $AffectedUserName /home/$AffectedUserName/en /home/$AffectedUserName/de
+  move necessary files (client and user cert, for example: ca.pem,cert.pem ) to /home/$AffectedUserName/de directory. Check the permission on these files (if needed set the right permission on those.)
+ps: If you want to unmount the directory - manually- you should run this command, as right user: fusermount -u ~/de
+Add the necessary steps to right files: we would like to ensure if the encrypted directory will be mounted and dismounted automatically:
+ vi /home/$AffectedUserName/.bash_profile:
+→ add this line to file: encfs -o nonempty ~/en ~/de
+Don't forget to update the variable of docker ! : export DOCKER_HOST=tcp://127.0.0.1:2376&&export DOCKER_TLS_VERIFY=1&&export DOCKER_CERT_PATH=~/de
+and set the timeout (the user's session will be disconected after 900 seconds inactivity:
+TMOUT=900
+ vi /home/$AffectedUserName/.bash_logout
+→ add this line to file: fusermount -u ~/de
+
+6.3: Limit usage of su command:
+Goal: limit who is able to use su command (become to another user):
+Solution:
+6.3.1: Only wheel group's member:
+Add the claimed user to wheel group: usermod -aG wheel $UserName
+Edit the pam file: vi /etc/pam.d/su and ensure if this row is exist/enabled: auth required pam_wheel.so use_uid
+6.3.2: Only defined group's member (in our case: adminmembers group):
+Add the desired users to adminmembers group.
+vi /etc/security/su-adminmembers-access
+→ add the sshawx user to this file.
+check if the permission (on the file) is right or not (0644 basically enough, it is owned by root): ls -l /etc/security/su-adminmembers-access
+Edit the pam file: vi /etc/pam.d/su and add these rows to file:
+ auth required pam_wheel.so use_uid group=adminmembers debug
+ auth required pam_listfile.so item=user sense=allow onerr=fail file=/etc/security/su-adminmembers-access
