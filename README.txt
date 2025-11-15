@@ -1,3 +1,5 @@
+# This repository is archived and not actively maintained. The content may still be useful as a reference
+-----------------
 # docker-user-control
 Control docker command usage/user activity on docker node(s)
 
